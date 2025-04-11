@@ -94,7 +94,7 @@ def group_staffs(candidates, cluster_gap_thresh=40, group_tolerance=30):
     return final_groups
 
 
-def extract_staff_regions(image, groups, margin=10):
+def extract_staffs(image, groups, margin=10):
     """
     Dla każdej grupy (pięciolini) określa pionowy obszar obejmujący staff (z dolanym marginesem)
     i wycina go z całego obrazu.
@@ -112,7 +112,7 @@ def extract_staff_regions(image, groups, margin=10):
     return regions
 
 
-def process_image(image):
+def process_image(image, debug=False):
     # 1. Detekcja linii i zwrócenie obrazów pośrednich
     binary, detected_lines = detect_staff_lines(image)  # Nowy unpacking
 
@@ -155,27 +155,30 @@ def process_image(image):
 
 
     # 4. Wycięcie regionów staffów
-    staff_regions = extract_staff_regions(image, groups, margin=10)
+    staffs = extract_staffs(image, groups, margin=10)
 
-    # Utwórz folder output, jeśli nie istnieje
-    os.makedirs('output', exist_ok=True)
+    # # Utwórz folder output, jeśli nie istnieje
+    # os.makedirs('output', exist_ok=True)
+    #
+    # for i, region in enumerate(staff_regions, 1):
+    #     output_name = os.path.join('output', f"output_staff_{i}.png")  # Zmieniona ścieżka
+    #     cv2.imwrite(output_name, region)
+    #     print(f"Zapisano wykrytą pięciolinię nr {i} do pliku {output_name}")
 
-    for i, region in enumerate(staff_regions, 1):
-        output_name = os.path.join('output', f"output_staff_{i}.png")  # Zmieniona ścieżka
-        cv2.imwrite(output_name, region)
-        print(f"Zapisano wykrytą pięciolinię nr {i} do pliku {output_name}")
+    # 5. Wizualizacja wyników przy pomocy matplotlib (jeżeli tryb debug)
+    if debug:
+        cols = 2
+        rows = (len(staffs) + cols - 1) // cols
+        plt.figure(figsize=(12, 5 * rows))
+        for i, region in enumerate(staffs, 1):
+            plt.subplot(rows, cols, i)
+            plt.imshow(cv2.cvtColor(region, cv2.COLOR_BGR2RGB))
+            plt.title(f"Pięciolinia {i}")
+            plt.axis("off")
+        plt.tight_layout()
+        plt.show()
 
-    # 5. Wizualizacja wyników przy pomocy matplotlib
-    cols = 2
-    rows = (len(staff_regions) + cols - 1) // cols
-    plt.figure(figsize=(12, 5 * rows))
-    for i, region in enumerate(staff_regions, 1):
-        plt.subplot(rows, cols, i)
-        plt.imshow(cv2.cvtColor(region, cv2.COLOR_BGR2RGB))
-        plt.title(f"Pięciolinia {i}")
-        plt.axis("off")
-    plt.tight_layout()
-    plt.show()
+    return staffs
 
 
 if __name__ == '__main__':
@@ -184,4 +187,4 @@ if __name__ == '__main__':
     if image is None:
         sys.exit(1)
 
-    process_image(image)
+    process_image(image, True)

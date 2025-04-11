@@ -83,11 +83,12 @@ def display_notes(notes):
     plt.show()
 
 
-# Przykład użycia pozostaje bez zmian
-staff_image = cv2.imread('output/output_staff_3.png')
-if staff_image is None:
-    print("Błąd: Nie udało się wczytać obrazu.")
-else:
-    notes = segment_symbols(staff_image, margin=5)
-    print(f"Wykryto {len(notes)} nut.")
-    display_notes(notes)
+# DEBUG
+if __name__ == '__main__':
+    staff_image = cv2.imread('output/output_staff_3.png')
+    if staff_image is None:
+        print("Błąd: Nie udało się wczytać obrazu.")
+    else:
+        notes = segment_symbols(staff_image, margin=5)
+        print(f"Wykryto {len(notes)} nut.")
+        display_notes(notes)

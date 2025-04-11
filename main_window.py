@@ -48,14 +48,18 @@ class MainWindow(QtWidgets.QMainWindow):
         pixmap = QtGui.QPixmap(file_path)
         self.image = cv2.imread(file_path)
         if pixmap.isNull():
-            QtWidgets.QMessageBox.critical(self, "Błąd", "Nie udało się wczytać obrazka!")
+            QtWidgets.QMessageBox.critical(self, "⚠️ Błąd", "Nie udało się wczytać obrazka!")
             return
         self.scene.setImage(pixmap)
         self.view.fitInView(self.scene.sceneRect(), QtCore.Qt.KeepAspectRatio)
 
     def processPoints(self):
         if self.scene.pixmap_item is None:
-            QtWidgets.QMessageBox.information(self, "ℹ️ Informacja", "Nie wczytano żadnego obrazu.")
+            QtWidgets.QMessageBox.information(self, "ℹ️ Informacja", "Należy wczytać obrazek.")
+            return
+
+        if self.image is None:
+            QtWidgets.QMessageBox.critical(self, "⚠️ Błąd", "Wystąpił problem podczas przetwarzania obrazka!")
             return
 
         if 0 < len(self.scene.points) < 4:
@@ -90,9 +94,6 @@ class MainWindow(QtWidgets.QMainWindow):
             bottom_points = sorted(pts_sorted[2:], key=lambda p: p.x())
             ordered_pts = [top_points[0], top_points[1], bottom_points[0], bottom_points[1]]
 
-        msg = "\n".join([f"Punkt {i+1}: ({p.x():.2f}, {p.y():.2f})" for i, p in enumerate(ordered_pts)])
-        QtWidgets.QMessageBox.information(self, "Współrzędne", msg)
-        # TODO: dalsze wykonywanie się kodu
         array = np.array([[p.x(), p.y()] for p in ordered_pts], dtype=np.float32)
         self.signals.array_ready.emit(self.image, array)
 

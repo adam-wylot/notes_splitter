@@ -1,9 +1,13 @@
 import perspectiver as psp
 import stave_separator as ss
+import box_notes as bn
 
 def handle_array(image, array):
-    print("Odebrano tablicę z MainWindow:")
-    print(array)
-
     warped = psp.perspective_with_scaling(image, array)
-    ss.process_image(warped)
+    staffs = ss.process_image(warped)
+
+    for staff in staffs:
+        notes = bn.segment_symbols(staff, margin=5)
+        bn.display_notes(notes)
+
+    # TODO: === notes zawiera obiekty klasy music_symbol. Są tam zdjęcia wykrytych symboli w tym nut. ===
