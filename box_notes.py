@@ -3,10 +3,7 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 
-
-class Note:
-    def __init__(self, image):
-        self.image = image
+from music_symbol import MusicSymbol
 
 
 def is_circular(contour, circularity_thresh_low=0.4, circularity_thresh_high=1.1):
@@ -18,7 +15,7 @@ def is_circular(contour, circularity_thresh_low=0.4, circularity_thresh_high=1.1
     return circularity >= circularity_thresh_low and circularity <= circularity_thresh_high
 
 
-def segment_open_notes_from_staff(staff_image, margin=5, merge_threshold=5):
+def segment_symbols(staff_image, margin=5, merge_threshold=5):
     gray = cv2.cvtColor(staff_image, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
     kernel = np.ones((3, 3), np.uint8)
@@ -33,7 +30,7 @@ def segment_open_notes_from_staff(staff_image, margin=5, merge_threshold=5):
             continue
         if not is_circular(cnt):
             continue
-        x, y, w, h = cv2.boundingRect(cnt)
+        x, _, w, _ = cv2.boundingRect(cnt)
         x_start = max(x - margin, 0)
         x_end = min(x + w + margin, img_width)
         candidate_intervals.append((x_start, x_end))
@@ -61,7 +58,7 @@ def segment_open_notes_from_staff(staff_image, margin=5, merge_threshold=5):
     for x_start, x_end in merged:
         x_end = min(x_end, img_width)
         cropped = staff_image[0:img_height, x_start:x_end]
-        note_obj = Note(cropped)
+        note_obj = MusicSymbol(cropped)
         notes_with_x.append((x_start, note_obj))
 
     notes_with_x.sort(key=lambda item: item[0])
@@ -91,6 +88,6 @@ staff_image = cv2.imread('output/output_staff_3.png')
 if staff_image is None:
     print("Błąd: Nie udało się wczytać obrazu.")
 else:
-    notes = segment_open_notes_from_staff(staff_image, margin=5)
+    notes = segment_symbols(staff_image, margin=5)
     print(f"Wykryto {len(notes)} nut.")
     display_notes(notes)

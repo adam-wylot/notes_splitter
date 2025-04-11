@@ -21,7 +21,6 @@ def main():
     apply_stylesheet(app, theme='dark_teal.xml')
     window = MainWindow()
     window.signals.array_ready.connect(utils.handle_array)
-    # warped = psp.perspective_with_scaling(image, ordered_pts)
     window.show()
     sys.exit(app.exec_())
 
