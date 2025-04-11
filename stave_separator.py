@@ -139,7 +139,6 @@ def process_image(image):
     # 3. Grupowanie kandydatów w staffy (pięciolinie)
     groups = group_staffs(candidates, cluster_gap_thresh=20, group_tolerance=10)
     img_groups = image.copy()
-    # Zmiana: użyj plt.get_cmap() zamiast plt.cm.get_cmap()
     colors = plt.get_cmap('hsv', len(groups)+1)  # <--- TU BYŁ PROBLEM
     for i, group in enumerate(groups):
         color = [int(255*c) for c in colors(i)[:3]]
