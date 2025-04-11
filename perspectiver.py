@@ -1,8 +1,11 @@
 import cv2
 import numpy as np
+from PyQt5 import QtWidgets
+from matplotlib import pyplot as plt
+
 
 # Lista klikniętych punktów (w oryginalnej skali)
-points = []
+# points = []
 
 
 # def mouse_callback(event, x, y, flags, param):
@@ -42,7 +45,17 @@ points = []
 #     return np.array([tl, tr, bl, br], dtype="float32")
 
 
-def perspective_with_scaling(image, pts_src):
+def perspective_with_scaling(image, pts_src, max_width=1000, max_height=500):
+    if image is None:
+        # TODO opis błędu
+        return
+
+    plt.imshow(image)
+    plt.axis('off')  # ukrywa osie (opcjonalnie)
+    plt.show()
+
+    # pts_src = np.array(pts, dtype=np.float32)
+
     # Uporządkuj punkty – automatyczne wykrycie rogów
     #pts_src = order_points(pts)
 
@@ -53,8 +66,9 @@ def perspective_with_scaling(image, pts_src):
     print("Bottom-right:", pts_src[3])
 
     # Definiujemy docelowy rozmiar wyprostowanego obrazu
-    width_target = 1000
-    height_target = 500
+    width_target = int(max(abs(pts_src[0][0] - pts_src[1][0]), abs(pts_src[2][0] - pts_src[3][0])))
+    height_target = int(max(abs(pts_src[0][1] - pts_src[1][1]), abs(pts_src[2][1] - pts_src[3][1])))
+
 
     pts_dst = np.float32([
         [0, 0],
@@ -65,4 +79,8 @@ def perspective_with_scaling(image, pts_src):
 
     M = cv2.getPerspectiveTransform(pts_src, pts_dst)
     warped = cv2.warpPerspective(image, M, (width_target, height_target))
+    warped_rgb = cv2.cvtColor(warped, cv2.COLOR_BGR2RGB)
+    plt.imshow(warped_rgb)
+    plt.axis('off')  # ukrywa osie (opcjonalnie)
+    plt.show()
     return warped

@@ -6,7 +6,7 @@ from PyQt5.QtCore import pyqtSignal
 from image_scene import ImageScene
 from image_viewer import ImageViewer
 from signals import SignalEmitter
-import perspectiver as psp
+import cv2
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -19,6 +19,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view.setScene(self.scene)
 
         self.signals = SignalEmitter()
+        self.image = None
 
         self.load_button = QtWidgets.QPushButton("📁 Wczytaj obraz")
         self.load_button.clicked.connect(self.openImageDialog)
@@ -45,8 +46,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def loadImage(self, file_path):
         pixmap = QtGui.QPixmap(file_path)
+        self.image = cv2.imread(file_path)
         if pixmap.isNull():
-            QtWidgets.QMessageBox.critical(self, "Błąd", "Nie udało się wczytać obrazka.")
+            QtWidgets.QMessageBox.critical(self, "Błąd", "Nie udało się wczytać obrazka!")
             return
         self.scene.setImage(pixmap)
         self.view.fitInView(self.scene.sceneRect(), QtCore.Qt.KeepAspectRatio)
@@ -91,6 +93,6 @@ class MainWindow(QtWidgets.QMainWindow):
         msg = "\n".join([f"Punkt {i+1}: ({p.x():.2f}, {p.y():.2f})" for i, p in enumerate(ordered_pts)])
         QtWidgets.QMessageBox.information(self, "Współrzędne", msg)
         # TODO: dalsze wykonywanie się kodu
-        array = np.array([[p.x(), p.y()] for p in ordered_pts])
-        self.signals.array_ready.emit(array)
+        array = np.array([[p.x(), p.y()] for p in ordered_pts], dtype=np.float32)
+        self.signals.array_ready.emit(self.image, array)
 

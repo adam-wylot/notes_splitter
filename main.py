@@ -2,6 +2,7 @@
 import os
 os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
 
+
 from PyQt5.QtCore import QLibraryInfo
 qt_plugins_path = QLibraryInfo.location(QLibraryInfo.PluginsPath)
 os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = qt_plugins_path + "/platforms"
