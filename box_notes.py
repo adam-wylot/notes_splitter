@@ -7,15 +7,23 @@ from music_symbol import MusicSymbol
 
 
 def is_circular(contour, circularity_thresh_low=0.4, circularity_thresh_high=1.1):
+    """
+    Sprawdza, czy kontur przypowina okrąg/kółko -- wtedy to jest prawdopodobnie nuta (do poprawy)
+    """
     perimeter = cv2.arcLength(contour, True)
     if perimeter == 0:
         return False
     area = cv2.contourArea(contour)
     circularity = 4 * math.pi * area / (perimeter * perimeter)
-    return circularity >= circularity_thresh_low and circularity <= circularity_thresh_high
+    return circularity_thresh_low <= circularity <= circularity_thresh_high
 
 
 def segment_symbols(staff_image, margin=5, merge_threshold=5):
+    """
+    Główna funkcja w pliku. Pobiera obrazek pięciolinii i boxuje znaki, które na niej są.
+    <margin> to zmienna odpowiedzialna za to ile pikseli na lewo i prawo ma być dołączone do boxa,
+    żeby nutka nie była na krawędziach obrazka
+    """
     gray = cv2.cvtColor(staff_image, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
     kernel = np.ones((3, 3), np.uint8)
@@ -67,6 +75,10 @@ def segment_symbols(staff_image, margin=5, merge_threshold=5):
 
 
 def display_notes(notes):
+    """
+    Zwykła funkcja do debugowania lub prezentowania danych. Dostaje talbicę obiektów MusicSymbol
+    i za pomocą matplotlib pokazuje zdjęcia nutek.
+    """
     num_notes = len(notes)
     if num_notes == 0:
         print("Brak nut do wyświetlenia.")
@@ -83,7 +95,9 @@ def display_notes(notes):
     plt.show()
 
 
-# DEBUG
+
+
+# === DEBUG STARTER ===
 if __name__ == '__main__':
     staff_image = cv2.imread('output/output_staff_3.png')
     if staff_image is None:

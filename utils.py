@@ -2,16 +2,19 @@ import perspectiver as psp
 import stave_separator as ss
 import box_notes as bn
 
-def handle_array(image, array):
-    warped = psp.perspective_with_scaling(image, array)
-    staffs = ss.process_image(warped)
+def sheet_image_handler(sheet_image, persp_points_arr):
+    warped = psp.perspective_with_scaling(sheet_image, persp_points_arr) # zmiana perspektywy zdjęcia
+    staffs = ss.process_image(warped) # wykrycie pięciolinii
 
     if staffs is None:
         # TODO: print error
         return
 
+    # Zebranie nut do tablicy [n][k], gdzię: n-ta pięciolinia wkolei (od góry licząc); k-ta nutka
+    notes = []
     for staff in staffs:
-        notes = bn.segment_symbols(staff, margin=5)
-        bn.display_notes(notes)
+        staff_notes = bn.segment_symbols(staff)
+        notes.append(staff_notes)
+        # bn.display_notes(staff_notes) # odkomentować, żeby zobaczyć wycięte nutki
 
-    # TODO: === notes zawiera obiekty klasy music_symbol. Są tam zdjęcia wykrytych symboli w tym nut. ===
+    # [?] === notes zawiera obiekty klasy music_symbol. Są tam zdjęcia wykrytych symboli w tym nut. ===

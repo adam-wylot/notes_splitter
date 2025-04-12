@@ -113,15 +113,17 @@ def group_staffs(candidates, cluster_gap_thresh=40, group_tolerance=30):
     return final_groups
 
 
-def extract_staffs(image, groups, margin=10):
+def extract_staffs(image, groups):
     """
     Dla każdej grupy (pięciolini) określa pionowy obszar obejmujący staff (z dolanym marginesem)
     i wycina go z całego obrazu.
     """
     regions = []
     for group in groups:
-        top = int(min(item[1] for item in group)) - margin
-        bottom = int(max(item[1] + item[3] for item in group)) + margin
+        diff = abs(group[0][4] - group[1][4])
+
+        top = int(min(item[1] for item in group)) - 3*diff
+        bottom = int(max(item[1] + item[3] for item in group)) + 3*diff
 
         top = max(top, 0)
         bottom = min(bottom, image.shape[0])
@@ -176,7 +178,7 @@ def process_image(image, debug=False):
 
 
     # 4. Wycięcie regionów staffów
-    staffs = extract_staffs(image, groups, margin=10)
+    staffs = extract_staffs(image, groups)
 
     # # Utwórz folder output, jeśli nie istnieje
     # os.makedirs('output', exist_ok=True)

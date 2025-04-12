@@ -10,16 +10,15 @@ class ImageScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.pixmap_item = None
-        self.points = []  # Lista obiektów DraggablePoint
-        self.polygon_item = None  # QGraphicsPolygonItem do rysowania obrysu
+        self.points = []  # Lista obiektów DraggablePoint (rogi zaznaczonej perspektywy)
+        self.polygon_item = None  # QGraphicsPolygonItem do rysowania obrysu perspektywy (krawędzi)
 
     def setImage(self, pixmap):
         self.clear()
         self.points = []
-        # Dodaj obrazek do sceny
-        self.pixmap_item = self.addPixmap(pixmap)
+        self.setBackgroundBrush(QtGui.QBrush(QtCore.Qt.white))
+        self.pixmap_item = self.addPixmap(pixmap) # dodaj obrazek do sceny
         self.setSceneRect(self.pixmap_item.boundingRect())
-        # Dodaj pusty obrys (QGraphicsPolygonItem)
         self.polygon_item = self.addPolygon(QtGui.QPolygonF(), pen=QtGui.QPen(QtCore.Qt.green, 2))
 
     def addPoint(self, pos):
