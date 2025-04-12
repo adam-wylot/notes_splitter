@@ -6,6 +6,10 @@ def handle_array(image, array):
     warped = psp.perspective_with_scaling(image, array)
     staffs = ss.process_image(warped)
 
+    if staffs is None:
+        # TODO: print error
+        return
+
     for staff in staffs:
         notes = bn.segment_symbols(staff, margin=5)
         bn.display_notes(notes)

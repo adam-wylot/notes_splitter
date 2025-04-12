@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def detect_staff_lines(image):
+def get_image_details(image):
     """
     Konwertuje obraz do skali szarości, binaryzuje oraz wykorzystuje operacje morfologiczne
     z poziomym jądrem, aby wydobyć poziome linie.
@@ -21,25 +21,44 @@ def detect_staff_lines(image):
 
     # Operacja morfologiczna typu opening, która usuwa szumy i pozostawia głównie poziome linie
     detected_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, horizontal_kernel, iterations=1)
-    return binary, detected_lines
+
+    # Operacja closing – połączenie przerw w wykrytych liniach
+    closed_lines = cv2.morphologyEx(detected_lines, cv2.MORPH_CLOSE, horizontal_kernel, iterations=2)
+
+    return binary, closed_lines
 
 
-def find_line_candidates(detected_lines, image, min_width_ratio=0.3, max_line_height=15):
+def find_lines(detected_lines, image, max_angle=5):
     """
     Wyszukuje kontury w obrazie po operacjach morfologicznych oraz filtruje te,
-    które są wystarczająco długie (min_width_ratio * szerokość obrazu) i mają małą wysokość.
+    które są wystarczająco długie (min_width_ratio * szerokość obrazu), mają mały kąt (max_angle)
+    oraz niewielką wysokość (skalowaną w zależności od rozmiaru obrazu).
 
     Zwraca listę krotek: (x, y, w, h, y_center)
     """
     contours, _ = cv2.findContours(detected_lines, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     candidates = []
     for cnt in contours:
-        x, y, w, h = cv2.boundingRect(cnt)
-        if w > image.shape[1] * min_width_ratio and h < max_line_height:
-            y_center = y + h / 2.0
-            candidates.append((x, y, w, h, y_center))
-    # Sortowanie według środkowej pozycji Y
+        # Uzyskujemy minimalny prostokąt otaczający
+        (cx, cy), (w, h), angle = cv2.minAreaRect(cnt)
+
+        # transformacja kąta
+        angle = abs(angle)
+
+        if (angle + 90) % 180 < 45 or 135 < (angle + 90) % 180:
+            angle += 90
+            w, h = h, w  # zamiana, jeśli potrzebna
+
+
+        # Kryteria poprawnej linii
+        if (h < 1 or w / h > 30) and (angle % 180 < max_angle or angle % 180 > 180 - max_angle) and (h < 30 * (image.shape[0] / 2219)):
+            # Obliczenie lewego górnego rogu - przyjmujemy niewielką korektę dla dokładności
+            x = int(cx - w / 2)
+            y = int(cy - h / 2)
+            # Powiększamy prostokąt o zadany współczynnik
+            candidates.append((x, y, int(w), int(h), int(cy)))
     candidates.sort(key=lambda item: item[4])
+
     return candidates
 
 
@@ -114,22 +133,23 @@ def extract_staffs(image, groups, margin=10):
 
 def process_image(image, debug=False):
     # 1. Detekcja linii i zwrócenie obrazów pośrednich
-    binary, detected_lines = detect_staff_lines(image)  # Nowy unpacking
+    binary, detected_lines_cont = get_image_details(image)
 
     # Wizualizacja etapów przetwarzania
-    plt.figure(figsize=(15, 8))
-    plt.subplot(231), plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)), plt.title('Oryginał')
-    plt.subplot(232), plt.imshow(binary, cmap='gray'), plt.title('Binaryzacja Otsu (odwrócona)')
-    plt.subplot(233), plt.imshow(detected_lines, cmap='gray'), plt.title('Po operacjach morfologicznych')
+    if debug:
+        plt.figure(figsize=(15, 8))
+        plt.subplot(231), plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)), plt.title('Oryginał')
+        plt.subplot(232), plt.imshow(binary, cmap='gray'), plt.title('Binaryzacja Otsu (odwrócona)')
+        plt.subplot(233), plt.imshow(detected_lines_cont, cmap='gray'), plt.title('Po operacjach morfologicznych')
 
     # 2. Znalezienie kandydatów
-    candidates = find_line_candidates(detected_lines, image, min_width_ratio=0.3, max_line_height=15)
+    candidates = find_lines(detected_lines_cont, image)
     img_candidates = image.copy()
     for cand in candidates:
         x, y, w, h, _ = cand
         cv2.rectangle(img_candidates, (x, y), (x + w, y + h), (0, 255, 0), 2)
-    plt.subplot(234), plt.imshow(cv2.cvtColor(img_candidates, cv2.COLOR_BGR2RGB)), plt.title(
-        f'Kandydaci: {len(candidates)}')
+    if debug:
+        plt.subplot(234), plt.imshow(cv2.cvtColor(img_candidates, cv2.COLOR_BGR2RGB)), plt.title(f'Kandydaci: {len(candidates)}')
 
     if not candidates:
         print("Nie wykryto żadnych poziomych linii")
@@ -145,9 +165,10 @@ def process_image(image, debug=False):
         for cand in group:
             x, y, w, h, _ = cand
             cv2.rectangle(img_groups, (x,y), (x+w,y+h), color, 3)
-    plt.subplot(235), plt.imshow(cv2.cvtColor(img_groups, cv2.COLOR_BGR2RGB)), plt.title(f'Pogrupowane: {len(groups)}')
-    plt.tight_layout()
-    plt.show()
+    if debug:
+        plt.subplot(235), plt.imshow(cv2.cvtColor(img_groups, cv2.COLOR_BGR2RGB)), plt.title(f'Pogrupowane: {len(groups)}')
+        plt.tight_layout()
+        plt.show()
 
     if not groups:
         print("Nie znaleziono kompletnych pięciolinii")
