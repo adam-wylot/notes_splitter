@@ -49,10 +49,9 @@ def find_lines(detected_lines, image, max_angle=5):
             angle += 90
             w, h = h, w  # zamiana, jeśli potrzebna
 
-
         # Kryteria poprawnej linii
         if (h < 1 or w / h > 30) and (angle % 180 < max_angle or angle % 180 > 180 - max_angle) and (h < 30 * (image.shape[0] / 2219)):
-            # Obliczenie lewego górnego rogu - przyjmujemy niewielką korektę dla dokładności
+            # Obliczenie lewego górnego rogu
             x = int(cx - w / 2)
             y = int(cy - h / 2)
             # Powiększamy prostokąt o zadany współczynnik
@@ -156,7 +155,7 @@ def extract_staffs(image, groups):
         bottom = int(max(item[1] + item[3] for item in group)) + 3*diff
 
         top = max(top, 0)
-        bottom = min(bottom, image.shape[0])
+        bottom = min(bottom, image.shape[0]-1)
 
         region = image[top:bottom, :]
         regions.append(region)

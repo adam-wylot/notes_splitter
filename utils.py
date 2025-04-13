@@ -4,7 +4,7 @@ import box_notes as bn
 
 def sheet_image_handler(sheet_image, persp_points_arr):
     warped = psp.perspective_with_scaling(sheet_image, persp_points_arr) # zmiana perspektywy zdjęcia
-    staffs, gaps = ss.process_image(warped) # wykrycie pięciolinii
+    staffs, gaps = ss.process_image(warped, debug=True) # wykrycie pięciolinii
 
     if staffs is None:
         # TODO: print error
@@ -13,7 +13,7 @@ def sheet_image_handler(sheet_image, persp_points_arr):
     # Zebranie nut do tablicy [n][k], gdzię: n-ta pięciolinia wkolei (od góry licząc); k-ta nutka
     notes = []
     for staff, gap in zip(staffs, gaps):
-        staff_notes = bn.detect_symbols(staff, gap)
+        staff_notes = bn.detect_symbols(staff, gap, debug=True)
         notes.append(staff_notes)
         bn.display_notes(staff_notes) # odkomentować, żeby zobaczyć wycięte nutki
 

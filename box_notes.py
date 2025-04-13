@@ -54,22 +54,22 @@ def remove_lines(binary_image, line_length_ratio=0.5, debug=False):
         plt.figure(figsize=(10, 4))
         plt.subplot(1, 4, 1)
         plt.imshow(binary_image, cmap='gray')
-        plt.title("Binary Input")
+        plt.title("Zdjęcie (inv)")
         plt.axis('off')
 
         plt.subplot(1, 4, 2)
         plt.imshow(detected_hor_lines, cmap='gray')
-        plt.title("Detected Horizontal Lines")
+        plt.title("Wykryte linie poziome")
         plt.axis('off')
 
         plt.subplot(1, 4, 3)
         plt.imshow(detected_ver_lines, cmap='gray')
-        plt.title("Detected Vertical Lines")
+        plt.title("Wykryte linie pionowe")
         plt.axis('off')
 
         plt.subplot(1, 4, 4)
         plt.imshow(result, cmap='gray')
-        plt.title("After Line Removal")
+        plt.title("Zdjęcie po usuwaniu")
         plt.axis('off')
         plt.tight_layout()
         plt.show()
@@ -104,13 +104,6 @@ def detect_symbols(image, gap, debug=False):
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     binary_inv = cv2.bitwise_not(binary)
 
-    if debug:
-        plt.figure(figsize=(6, 5))
-        plt.imshow(binary_inv, cmap='gray')
-        plt.title("Binary Inverted")
-        plt.axis('off')
-        plt.show()
-
     # Usuwanie poziomych linii – można wyłączyć, jeśli nie chcemy usuwać pięciolinii
     lines_removed = remove_lines(binary_inv, line_length_ratio=0.3, debug=debug)
 
@@ -126,7 +119,7 @@ def detect_symbols(image, gap, debug=False):
     if debug:
         plt.figure(figsize=(6, 5))
         plt.imshow(processed, cmap='gray')
-        plt.title("After Morphology")
+        plt.title("Po czyszczeniu")
         plt.axis('off')
         plt.show()
 
@@ -168,7 +161,7 @@ def detect_symbols(image, gap, debug=False):
     if debug:
         plt.figure(figsize=(12, 6))
         plt.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
-        plt.title("Detected Circular Objects (Red Boxes)")
+        plt.title("Wykryte nuty (obrysowane)")
         plt.axis('off')
         plt.show()
 
@@ -191,7 +184,7 @@ def display_notes(notes):
         image_rgb = cv2.cvtColor(note.image, cv2.COLOR_BGR2RGB)
         plt.subplot(1, num_notes, idx + 1)
         plt.imshow(image_rgb)
-        plt.title(f'Note {idx}')
+        plt.title(f'Nuta nr {idx}')
         plt.axis('off')
     plt.tight_layout()
     plt.show()

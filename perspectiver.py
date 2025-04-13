@@ -34,6 +34,5 @@ def perspective_with_scaling(image, pts_src, max_width=1000, max_height=500):
 
     M = cv2.getPerspectiveTransform(pts_src, pts_dst)
     warped = cv2.warpPerspective(image, M, (width_target, height_target))
-    warped_rgb = cv2.cvtColor(warped, cv2.COLOR_BGR2RGB)
 
     return warped

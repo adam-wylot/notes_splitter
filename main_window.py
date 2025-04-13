@@ -69,7 +69,7 @@ class MainWindow(QtWidgets.QMainWindow):
         ordered_pts = []
 
         if len(self.scene.points) == 0:
-            ordered_pts = [QtCore.QPointF(0, 0), QtCore.QPointF(self.scene.pixmap_item.pixmap().width(), 0), QtCore.QPointF(0, self.scene.pixmap_item.pixmap().height()), QtCore.QPointF(self.scene.pixmap_item.pixmap().width(), self.scene.pixmap_item.pixmap().height())]
+            ordered_pts = [QtCore.QPointF(0, 0), QtCore.QPointF(self.scene.pixmap_item.pixmap().width()-1, 0), QtCore.QPointF(0, self.scene.pixmap_item.pixmap().height()-1), QtCore.QPointF(self.scene.pixmap_item.pixmap().width()-1, self.scene.pixmap_item.pixmap().height()-1)]
         else:
             pixmap_item = self.scene.pixmap_item
             if pixmap_item is not None:
