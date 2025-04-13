@@ -147,8 +147,10 @@ def extract_staffs(image, groups):
     i wycina go z całego obrazu.
     """
     regions = []
+    gaps = []
     for group in groups:
         diff = abs(group[0][4] - group[1][4])
+        gaps.append(diff)
 
         top = int(min(item[1] for item in group)) - 3*diff
         bottom = int(max(item[1] + item[3] for item in group)) + 3*diff
@@ -158,7 +160,7 @@ def extract_staffs(image, groups):
 
         region = image[top:bottom, :]
         regions.append(region)
-    return regions
+    return regions, gaps
 
 
 def process_image(image, debug=False):
@@ -206,7 +208,7 @@ def process_image(image, debug=False):
 
 
     # 4. Wycięcie regionów staffów
-    staffs = extract_staffs(image, groups)
+    staffs, gaps = extract_staffs(image, groups)
 
     # # Utwórz folder output, jeśli nie istnieje
     # os.makedirs('output', exist_ok=True)
@@ -229,7 +231,7 @@ def process_image(image, debug=False):
         plt.tight_layout()
         plt.show()
 
-    return staffs
+    return staffs, gaps
 
 
 if __name__ == '__main__':

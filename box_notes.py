@@ -19,21 +19,30 @@ def is_circular(contour, circularity_thresh_low=0.2, circularity_thresh_high=1.3
     return circularity_thresh_low <= circularity <= circularity_thresh_high
 
 
-def remove_staff_lines(img, line_thickness=1):
+def remove_staff_lines(img, gap, line_thickness=1):
     """
     Usuwa linie pięciolinii z binarnego obrazu 'img'.
     line_thickness określa przybliżoną grubość linii.
     """
     # Budowanie poziomego kernela; długość 50 pikseli – można eksperymentować
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (10, line_thickness))
+    kernel_hor = cv2.getStructuringElement(cv2.MORPH_RECT, (int(1.1*gap), line_thickness))
+    kernel_ver = cv2.getStructuringElement(cv2.MORPH_RECT, (line_thickness, int(1.1*gap)))
     # Erozja usuwa cienkie poziome linie
-    eroded = cv2.erode(img, kernel, iterations=2)
+    eroded_ver = cv2.erode(img, kernel_ver, iterations=1)
+    eroded_hor = cv2.erode(img, kernel_hor, iterations=1)
+
     # Odejmujemy wykryte linie od oryginału
-    result = cv2.subtract(img, eroded)
-    return result
+    result = cv2.subtract(img, eroded_hor)
+    result = cv2.subtract(result, eroded_ver)
+
+    # Czyszczenie szumu
+    kernel_noise = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)) # int(max(0.5*gap, 1))
+    result_clean = cv2.morphologyEx(result, cv2.MORPH_OPEN, kernel_noise)
+
+    return result_clean
 
 
-def segment_symbols(staff_image, margin_ratio=0.02, merge_threshold_ratio=0.01, min_area_ratio=0.0001,
+def segment_symbols(staff_image, gap, margin_ratio=0.02, merge_threshold_ratio=0.01, min_area_ratio=0.01,
                     margin=None, debug=True):
     """
     Funkcja przetwarza obraz pięciolinii (staff_image) i wykrywa na niej symbole muzyczne (np. nuty),
@@ -69,7 +78,7 @@ def segment_symbols(staff_image, margin_ratio=0.02, merge_threshold_ratio=0.01, 
         plt.show()
 
     # Usunięcie linii pięciolinii
-    thresh_no_lines = remove_staff_lines(thresh, line_thickness=1)
+    thresh_no_lines = remove_staff_lines(thresh, gap, line_thickness=1)
     if debug:
         plt.figure(figsize=(6, 5))
         plt.imshow(thresh_no_lines, cmap='gray')
@@ -78,7 +87,7 @@ def segment_symbols(staff_image, margin_ratio=0.02, merge_threshold_ratio=0.01, 
         plt.show()
 
     # Zamykanie przerw
-    closing_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    closing_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
     thresh_closed = cv2.morphologyEx(thresh_no_lines, cv2.MORPH_CLOSE, closing_kernel)
     if debug:
         plt.figure(figsize=(6, 5))
