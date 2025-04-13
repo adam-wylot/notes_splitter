@@ -3,212 +3,174 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 
-from music_symbol import MusicSymbol
 
 
-def is_circular(contour, circularity_thresh_low=0.2, circularity_thresh_high=1.3):
+def is_circular(cnt, circularity_thresh_low=0.6, circularity_thresh_high=1.3):
     """
-    Sprawdza, czy kontur przypomina okrąg/kółko – wtedy prawdopodobnie jest to nuta.
-    Funkcja używa miary kołowości, która jest bezwymiarowa.
+    Funkcja oblicza miarę kołowości konturu:
+       circularity = 4*pi * (area) / (perimeter^2)
+    Dla idealnego koła wartość ta wynosi 1.0.
+    Ustawiając dolny próg na 0.1, akceptujemy również kontury z wewnętrznymi otworami.
     """
-    perimeter = cv2.arcLength(contour, True)
+    (_, _), (w, h), _ = cv2.minAreaRect(cnt)
+    aspect_ratio = w / h if h != 0 else 0
+
+    if 1.3 < aspect_ratio or aspect_ratio < 0.5:
+        return False
+
+
+    perimeter = cv2.arcLength(cnt, True)
     if perimeter == 0:
         return False
-    area = cv2.contourArea(contour)
-    circularity = 4 * math.pi * area / (perimeter * perimeter)
+    area = cv2.contourArea(cnt)
+    circularity = 4 * math.pi * area / (perimeter ** 2)
     return circularity_thresh_low <= circularity <= circularity_thresh_high
 
 
-def remove_staff_lines(img, gap, line_thickness=1):
+def remove_lines(binary_image, line_length_ratio=0.5, debug=False):
     """
-    Usuwa linie pięciolinii z binarnego obrazu 'img'.
-    line_thickness określa przybliżoną grubość linii.
+    Usuwa poziome linie (np. pięciolinię) z binarnego obrazu.
+    Przy pomocy otwarcia morfologicznego z poziomym kernelem.
     """
-    # Budowanie poziomego kernela; długość 50 pikseli – można eksperymentować
-    kernel_hor = cv2.getStructuringElement(cv2.MORPH_RECT, (int(1.1*gap), line_thickness))
-    kernel_ver = cv2.getStructuringElement(cv2.MORPH_RECT, (line_thickness, int(1.1*gap)))
-    # Erozja usuwa cienkie poziome linie
-    eroded_ver = cv2.erode(img, kernel_ver, iterations=1)
-    eroded_hor = cv2.erode(img, kernel_hor, iterations=1)
+    h, w = binary_image.shape
 
-    # Odejmujemy wykryte linie od oryginału
-    result = cv2.subtract(img, eroded_hor)
-    result = cv2.subtract(result, eroded_ver)
+    hor_kernel_length = int(w * line_length_ratio)
+    ver_kernel_length = int(h * line_length_ratio)
 
-    # Czyszczenie szumu
-    kernel_noise = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)) # int(max(0.5*gap, 1))
-    result_clean = cv2.morphologyEx(result, cv2.MORPH_OPEN, kernel_noise)
+    hor_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (hor_kernel_length, 1))
+    ver_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, ver_kernel_length))
 
-    return result_clean
+    temp1 = cv2.erode(binary_image, hor_kernel, iterations=1)
+    temp2 = cv2.erode(binary_image, ver_kernel, iterations=1)
+
+    detected_hor_lines = cv2.dilate(temp1, hor_kernel, iterations=1)
+    detected_ver_lines = cv2.dilate(temp2, ver_kernel, iterations=1)
+
+    result = cv2.subtract(binary_image, detected_hor_lines)
+    result = cv2.subtract(result, detected_ver_lines)
+
+    if debug:
+        plt.figure(figsize=(10, 4))
+        plt.subplot(1, 4, 1)
+        plt.imshow(binary_image, cmap='gray')
+        plt.title("Binary Input")
+        plt.axis('off')
+
+        plt.subplot(1, 4, 2)
+        plt.imshow(detected_hor_lines, cmap='gray')
+        plt.title("Detected Horizontal Lines")
+        plt.axis('off')
+
+        plt.subplot(1, 4, 3)
+        plt.imshow(detected_ver_lines, cmap='gray')
+        plt.title("Detected Vertical Lines")
+        plt.axis('off')
+
+        plt.subplot(1, 4, 4)
+        plt.imshow(result, cmap='gray')
+        plt.title("After Line Removal")
+        plt.axis('off')
+        plt.tight_layout()
+        plt.show()
+
+    return result
 
 
-def segment_symbols(staff_image, gap, margin_ratio=0.02, merge_threshold_ratio=0.01, min_area_ratio=0.01,
-                    margin=None, debug=True):
+def detect_symbols(image, gap, debug=False):
     """
-    Funkcja przetwarza obraz pięciolinii (staff_image) i wykrywa na niej symbole muzyczne (np. nuty),
-    boxując je na podstawie kształtu. Kryteria takie jak marginesy i progi łączenia przedziałów są
-    ustalane dynamicznie na podstawie rozmiaru obrazka.
+    Pipeline do wykrywania wyłącznie okrągłych obiektów.
 
-    Parametry:
-      - margin_ratio: stosunek marginesu (w lewo i prawo) do szerokości obrazu (używany, gdy nie podano margin).
-      - merge_threshold_ratio: stosunek progu łączenia przedziałów do szerokości obrazu.
-      - min_area_ratio: minimalna dopuszczalna powierzchnia konturu (w stosunku do powierzchni obrazu),
-                        aby był on traktowany jako potencjalna nuta.
-      - margin: opcjonalny margines (w pikselach) – jeśli podany, zastępuje margin_ratio.
-      - debug: jeśli True, wyświetla reprezentację diagnostyczną kolejnych etapów przetwarzania obrazu.
-
-    Zwracana jest lista obiektów MusicSymbol posortowanych zgodnie z pozycją x (od lewej).
+    Kroki:
+      1. Wczytanie obrazu, konwersja do skali szarości i binaryzacja.
+      2. Odwrócenie binaryzowanego obrazu (nuty będą białe, tło czarne).
+      3. Usunięcie poziomych linii (np. pięciolinia) – opcjonalnie, jeśli nie chcemy wykrywać tych linii.
+      4. Opcjonalne operacje morfologiczne (closing/opening), aby „uporządkować” kształty.
+      5. Wykrywanie konturów.
+      6. Filtracja konturów przy pomocy funkcji is_circular.
+      7. Boxowanie wykrytych obiektów.
     """
-    # Konwersja obrazu do skali szarości
-    gray = cv2.cvtColor(staff_image, cv2.COLOR_BGR2GRAY)
-    if debug:
-        plt.figure(figsize=(6, 5))
-        plt.imshow(gray, cmap='gray')
-        plt.title("Gray Image")
-        plt.axis("off")
-        plt.show()
-
-    # Binaryzacja z Otsu
-    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    if debug:
-        plt.figure(figsize=(6, 5))
-        plt.imshow(thresh, cmap='gray')
-        plt.title("Threshold (Binarized) Image")
-        plt.axis("off")
-        plt.show()
-
-    # Usunięcie linii pięciolinii
-    thresh_no_lines = remove_staff_lines(thresh, gap, line_thickness=1)
-    if debug:
-        plt.figure(figsize=(6, 5))
-        plt.imshow(thresh_no_lines, cmap='gray')
-        plt.title("After Removing Staff Lines")
-        plt.axis("off")
-        plt.show()
-
-    # Zamykanie przerw
-    closing_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
-    thresh_closed = cv2.morphologyEx(thresh_no_lines, cv2.MORPH_CLOSE, closing_kernel)
-    if debug:
-        plt.figure(figsize=(6, 5))
-        plt.imshow(thresh_closed, cmap='gray')
-        plt.title("After Closing Operation")
-        plt.axis("off")
-        plt.show()
-
-    # Wykrycie konturów na obrazie pozbawionym linii
-    contours, _ = cv2.findContours(thresh_closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Rozmiary obrazu – do obliczeń dynamicznych
-    img_height, img_width = staff_image.shape[:2]
-    image_area = img_height * img_width
-
-    # Ustalenie marginesu; jeśli margin podany, używamy go, w przeciwnym razie margin_ratio
-    if margin is None:
-        margin = int(margin_ratio * img_width)
-    merge_threshold = int(merge_threshold_ratio * img_width)
-    min_area = image_area * min_area_ratio
-
-    candidate_intervals = []
-    overlay = staff_image.copy()
-
-    # Przetwarzanie konturów – filtracja na podstawie powierzchni i kształtu (kołowości)
-    for cnt in contours:
-        if cv2.contourArea(cnt) < min_area:
-            continue
-        if not is_circular(cnt):
-            continue
-        # Rysujemy kontur na obrazie diagnostycznym
-        cv2.drawContours(overlay, [cnt], -1, (0, 255, 0), 2)
-        x, y, w, h = cv2.boundingRect(cnt)
-        # Opcjonalnie rysujemy prostokąt
-        cv2.rectangle(overlay, (x, y), (x + w, y + h), (255, 0, 0), 1)
-        x_start = max(x - margin, 0)
-        x_end = min(x + w + margin, img_width)
-        candidate_intervals.append((x_start, x_end))
-
-    if debug:
-        plt.figure(figsize=(8, 6))
-        plt.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
-        plt.title("Detected Candidate Contours")
-        plt.axis("off")
-        plt.show()
-
-    if not candidate_intervals:
-        if debug:
-            print("Brak kandydatów na symbole muzyczne.")
+    # Wczytanie obrazu
+    bgr = image
+    if bgr is None:
+        print("Błąd wczytania obrazu.")
         return []
 
-    # Łączenie nakładających się lub bliskich przedziałów – sortujemy po współrzędnej x
-    sorted_intervals = sorted(candidate_intervals, key=lambda x: x[0])
-    # merged = []
-    # for interval in sorted_intervals:
-    #     if not merged:
-    #         merged.append(interval)
-    #     else:
-    #         last_start, last_end = merged[-1]
-    #         current_start, current_end = interval
-    #         if current_start <= last_end + merge_threshold:
-    #             new_start = min(last_start, current_start)
-    #             new_end = max(last_end, current_end)
-    #             merged[-1] = (new_start, new_end)
-    #         else:
-    #             merged.append(interval)
+    # Konwersja do skali szarości
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
 
-    # Wizualizacja połączonych przedziałów na oryginalnym obrazie
-    overlay2 = staff_image.copy()
-    for (x_start, x_end) in sorted_intervals:
-        cv2.rectangle(overlay2, (x_start, 0), (x_end, img_height), (0, 0, 255), 2)
+    # Binaryzacja – korzystamy z metody Otsu i odwracamy obraz,
+    # żeby obiekty miały wartość 255 (białe), a tło 0 (czarne)
+    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    binary_inv = cv2.bitwise_not(binary)
+
     if debug:
-        plt.figure(figsize=(8, 6))
-        plt.imshow(cv2.cvtColor(overlay2, cv2.COLOR_BGR2RGB))
-        plt.title("Merged Note Intervals")
-        plt.axis("off")
+        plt.figure(figsize=(6, 5))
+        plt.imshow(binary_inv, cmap='gray')
+        plt.title("Binary Inverted")
+        plt.axis('off')
         plt.show()
 
-    # Wyodrębnienie nut – tworzymy obiekty MusicSymbol dla wykrytych przedziałów
-    notes_with_x = []
-    for x_start, x_end in sorted_intervals:
-        x_end = min(x_end, img_width)
-        cropped = staff_image[:, x_start:x_end]
-        note_obj = MusicSymbol(cropped)  # Zakładamy, że MusicSymbol przyjmuje obrazek
-        notes_with_x.append((x_start, note_obj))
+    # Usuwanie poziomych linii – można wyłączyć, jeśli nie chcemy usuwać pięciolinii
+    lines_removed = remove_lines(binary_inv, line_length_ratio=0.3, debug=debug)
 
-    # Sortowanie nut według pozycji x
-    notes_with_x.sort(key=lambda item: item[0])
-    sorted_notes = [item[1] for item in notes_with_x]
-    return sorted_notes
+    # Opcjonalne operacje morfologiczne
+    # Closing z kernelem 5x5, aby zamknąć ewentualne otwory w okrągłych obiektach
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+    closed = cv2.morphologyEx(lines_removed, cv2.MORPH_CLOSE, kernel_close)
 
+    # Opening 3x3, aby usunąć drobne szumy
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    processed = cv2.morphologyEx(closed, cv2.MORPH_OPEN, kernel_open)
 
-def display_notes(notes):
-    """
-    Funkcja do prezentacji wykrytych nut. Dostaje listę obiektów MusicSymbol
-    i za pomocą matplotlib pokazuje zdjęcia poszczególnych nut.
-    """
-    num_notes = len(notes)
-    if num_notes == 0:
-        print("Brak nut do wyświetlenia.")
-        return
-
-    plt.figure(figsize=(num_notes * 3, 4))
-    for idx, note in enumerate(notes):
-        # Zakładamy, że obiekt MusicSymbol ma atrybut image zawierający obrazek w formacie BGR
-        image_rgb = cv2.cvtColor(note.image, cv2.COLOR_BGR2RGB)
-        plt.subplot(1, num_notes, idx + 1)
-        plt.imshow(image_rgb)
-        plt.title(f'Note {idx}')
+    if debug:
+        plt.figure(figsize=(6, 5))
+        plt.imshow(processed, cmap='gray')
+        plt.title("After Morphology")
         plt.axis('off')
-    plt.tight_layout()
-    plt.show()
+        plt.show()
+
+    # Znalezienie konturów – wybieramy RETR_EXTERNAL, by brać tylko zewnętrzne kształty
+    contours, _ = cv2.findContours(processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    overlay = bgr.copy()
+    boxes = []
+    h, w = processed.shape
+    image_area = h * w
+
+    # Minimalna powierzchnia, żeby pominąć bardzo małe artefakty (możesz dostosować)
+    min_area = 0.0003 * image_area
+
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area < min_area:
+            continue
+
+        # Sprawdzamy czy kontur jest wystarczająco „okrągły”
+        if not is_circular(cnt, circularity_thresh_low=0.4, circularity_thresh_high=1.2):
+            continue
+
+        # Wyznaczamy bounding box dla konturu
+        x, _, bw, _ = cv2.boundingRect(cnt)
+        margin = int(0.3 * gap)
+        x_start = max(x - margin, 0)
+        y_start = 0
+        x_end = min(x + bw + margin, w)
+        y_end = h
+        boxes.append((x_start, y_start, x_end - x_start, y_end - y_start))
+        cv2.rectangle(overlay, (x_start, y_start), (x_end, y_end), (0, 0, 255), 2)
+
+    if debug:
+        plt.figure(figsize=(12, 6))
+        plt.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+        plt.title("Detected Circular Objects (Red Boxes)")
+        plt.axis('off')
+        plt.show()
+
+    return boxes
 
 
-# === DEBUG STARTER ===
-if __name__ == '__main__':
-    staff_image = cv2.imread('output/output_staff_3.png')
-    if staff_image is None:
-        print("Błąd: Nie udało się wczytać obrazu.")
-    else:
-        # Ustaw debug=True, aby wyświetlić diagnostykę etapów przetwarzania
-        notes = segment_symbols(staff_image, debug=True)
-        print(f"Wykryto {len(notes)} nut.")
-        display_notes(notes)
+if __name__ == "__main__":
+    # Podmień na ścieżkę do Twojego obrazu
+    img_path = "wlazl_kotek_na_plotek.jpg"
+    boxes = detect_symbols(img_path, 5, debug=True)
+    print(f"Wykryto {len(boxes)} potencjalnych okrągłych obiektów.")
