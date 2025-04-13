@@ -62,19 +62,46 @@ def find_lines(detected_lines, image, max_angle=5):
     return candidates
 
 
-def group_staffs(candidates, cluster_gap_thresh=40, group_tolerance=30):
+def group_staffs(candidates):
     """
-    Grupuje kandydatów (wykryte linie) w dwa etapy:
-      1. Klasteryzacja – kandydaci są dzieleni na klastry, jeśli odstęp między ich środkami
-         przekracza cluster_gap_thresh.
-      2. W każdym klastrze sprawdzane są przesuwane okna 5 kolejnych linii; jeżeli różnica
-         między maksymalnym a minimalnym odstępem między liniami w oknie nie przekracza group_tolerance,
-         uznajemy to za wykrytą pięciolinię.
+    Grupuje kandydatów (wykryte linie) w pięciolinie muzyczne przy użyciu dynamicznie ustalanych progów,
+    dzięki czemu funkcja jest mniej zależna od rozmiaru obrazka.
+
+    Proces działania:
+      1. Sortujemy kandydatów według współrzędnej y punktu centralnego (cy).
+      2. Obliczamy różnice między kolejnymi wartościami y (centers) i wyznaczamy medianę tych różnic.
+         Ta mediana przyjmowana jest jako "typowa" odległość między liniami w obrębie jednej pięciolinii.
+      3. Dynamiczny próg oddzielenia pięciolinii (cluster_gap_thresh) ustalamy jako:
+             cluster_gap_thresh = median_diff * 1.5
+         – dzięki temu większe przerwy między klastrami (czyli między pięcioliniami) są wyłapywane.
+      4. Tolerancję grupowania linii w obrębie jednej pięciolinii (group_tolerance) ustalamy jako:
+             group_tolerance = median_diff * 0.5
+         – mała zmienność odstępów między liniami w obrębie tego samego pięciolinii.
+      5. Najpierw kandydaci są dzieleni na klastery, jeśli odstęp między kolejnymi liniami przekracza cluster_gap_thresh.
+      6. Następnie w obrębie każdej grupy przeszukiwane są okna pięciu kolejnych linii.
+         Jeśli różnica między największą a najmniejszą wartością odstępów (między środkami linii) nie przekracza group_tolerance,
+         przyjmujemy to jako poprawnie wyodrębnioną pięciolinię.
     """
+    # Sortowanie kandydatów według współrzędnej y środka (cy) – przyjmujemy, że znajduje się on na pozycji indeksu 4
+    sorted_candidates = sorted(candidates, key=lambda c: c[4])
+
+    # Jeśli mamy mniej niż dwa elementy, nie da się obliczyć odstępu
+    if len(sorted_candidates) < 2:
+        return []
+
+    # Wyciągamy wszystkie środki linii i obliczamy różnice między kolejnymi
+    centers = [c[4] for c in sorted_candidates]
+    diffs = np.diff(centers)
+    median_diff = np.median(diffs)
+
+    # Dynamicznie ustalane progi (można zmieniać mnożniki w zależności od specyfiki obrazka)
+    cluster_gap_thresh = median_diff * 1.5
+    group_tolerance = median_diff * 0.5
+
+    # Etap 1: Klasteryzacja – grupowanie kandydatów, gdy różnica między środkami jest mniejsza niż cluster_gap_thresh
     clusters = []
     current_cluster = []
-    # Klasteryzacja kandydatów – korzystamy z sortowania według y_center
-    for i, cand in enumerate(candidates):
+    for cand in sorted_candidates:
         if not current_cluster:
             current_cluster.append(cand)
         else:
@@ -87,21 +114,22 @@ def group_staffs(candidates, cluster_gap_thresh=40, group_tolerance=30):
     if current_cluster:
         clusters.append(current_cluster)
 
+    # Etap 2: W obrębie każdego klastra szukamy okien 5 kolejnych linii spełniających warunek spójności
     groups = []
-    # Dla każdego klastra – jeśli ma przynajmniej 5 kandydatów, wyciągamy grupy
     for cluster in clusters:
         if len(cluster) < 5:
             continue
         n = len(cluster)
         for i in range(n - 4):
             group = cluster[i:i + 5]
-            centers = [item[4] for item in group]
-            diffs = np.diff(centers)
-            # Jeżeli różnica między największym a najmniejszym odstępem pomiędzy liniami jest mniejsza niż tolerance,
-            # uznajemy grupę za spójną pięciolinię.
-            if np.max(diffs) - np.min(diffs) <= group_tolerance:
+            group_centers = [item[4] for item in group]
+            group_diffs = np.diff(group_centers)
+            # Jeżeli różnica między największym a najmniejszym odstępem w grupie mieści się w dynamicznej tolerancji,
+            # uznajemy grupę za spójną pięciolinię
+            if np.max(group_diffs) - np.min(group_diffs) <= group_tolerance:
                 groups.append(group)
-    # Jeśli powstało wiele nakładających się grup, wybieramy te unikalne (np. na podstawie środka pierwszej linii)
+
+    # Opcjonalnie: wybieramy unikalne pięciolinie, aby uniknąć nakładających się detekcji
     final_groups = []
     used = set()
     for group in groups:
@@ -159,7 +187,7 @@ def process_image(image, debug=False):
 
 
     # 3. Grupowanie kandydatów w staffy (pięciolinie)
-    groups = group_staffs(candidates, cluster_gap_thresh=20, group_tolerance=10)
+    groups = group_staffs(candidates)
     img_groups = image.copy()
     colors = plt.get_cmap('hsv', len(groups)+1)  # <--- TU BYŁ PROBLEM
     for i, group in enumerate(groups):
@@ -205,7 +233,7 @@ def process_image(image, debug=False):
 
 
 if __name__ == '__main__':
-    image_path = "data/cos.jpg"  # Podmień na ścieżkę do obrazu z nutami
+    image_path = "data/wlazl_kotek_na_plotek.jpg"  # Podmień na ścieżkę do obrazu z nutami
     image = cv2.imread(image_path)
     if image is None:
         sys.exit(1)
