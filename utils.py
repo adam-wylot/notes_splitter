@@ -15,6 +15,6 @@ def sheet_image_handler(sheet_image, persp_points_arr):
     for staff in staffs:
         staff_notes = bn.segment_symbols(staff)
         notes.append(staff_notes)
-        # bn.display_notes(staff_notes) # odkomentować, żeby zobaczyć wycięte nutki
+        bn.display_notes(staff_notes) # odkomentować, żeby zobaczyć wycięte nutki
 
     # [?] === notes zawiera obiekty klasy music_symbol. Są tam zdjęcia wykrytych symboli w tym nut. ===
