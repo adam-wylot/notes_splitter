@@ -1,7 +1,8 @@
 import cv2
-import numpy as np
 import math
 import matplotlib.pyplot as plt
+
+from music_symbol import MusicSymbol
 
 
 
@@ -133,7 +134,7 @@ def detect_symbols(image, gap, debug=False):
     contours, _ = cv2.findContours(processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     overlay = bgr.copy()
-    boxes = []
+    music_symbols = []
     h, w = processed.shape
     image_area = h * w
 
@@ -155,8 +156,13 @@ def detect_symbols(image, gap, debug=False):
         x_start = max(x - margin, 0)
         y_start = 0
         x_end = min(x + bw + margin, w)
-        y_end = h
-        boxes.append((x_start, y_start, x_end - x_start, y_end - y_start))
+        y_end = h-1
+
+        # Wycinamy fragment obrazu odpowiadający nucie
+        note_image = bgr[y_start:y_end, x_start:x_end]
+        music_symbol = MusicSymbol(note_image, x_start)
+        music_symbols.append(music_symbol)
+
         cv2.rectangle(overlay, (x_start, y_start), (x_end, y_end), (0, 0, 255), 2)
 
     if debug:
@@ -166,11 +172,39 @@ def detect_symbols(image, gap, debug=False):
         plt.axis('off')
         plt.show()
 
-    return boxes
+    music_symbols.sort(key=lambda ms: ms.x) # sortowanie
+    return music_symbols
+
+def display_notes(notes):
+    """
+    Funkcja do prezentacji wykrytych nut. Dostaje listę obiektów MusicSymbol
+    i za pomocą matplotlib pokazuje zdjęcia poszczególnych nut.
+    """
+    num_notes = len(notes)
+    if num_notes == 0:
+        print("Brak nut do wyświetlenia.")
+        return
+
+    plt.figure(figsize=(num_notes * 3, 4))
+    for idx, note in enumerate(notes):
+        # Zakładamy, że obiekt MusicSymbol ma atrybut image zawierający obrazek w formacie BGR
+        image_rgb = cv2.cvtColor(note.image, cv2.COLOR_BGR2RGB)
+        plt.subplot(1, num_notes, idx + 1)
+        plt.imshow(image_rgb)
+        plt.title(f'Note {idx}')
+        plt.axis('off')
+    plt.tight_layout()
+    plt.show()
 
 
-if __name__ == "__main__":
-    # Podmień na ścieżkę do Twojego obrazu
-    img_path = "wlazl_kotek_na_plotek.jpg"
-    boxes = detect_symbols(img_path, 5, debug=True)
-    print(f"Wykryto {len(boxes)} potencjalnych okrągłych obiektów.")
+
+# === DEBUG STARTER ===
+if __name__ == '__main__':
+    staff_image = cv2.imread('output/output_staff_3.png')
+    if staff_image is None:
+        print("Błąd: Nie udało się wczytać obrazu.")
+    else:
+        # Ustaw debug=True, aby wyświetlić diagnostykę etapów przetwarzania
+        notes = detect_symbols(staff_image, 5, debug=True)
+        print(f"Wykryto {len(notes)} nut.")
+        display_notes(notes)
